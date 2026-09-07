@@ -85,7 +85,7 @@ async def test_celery_monthly_100_job_reward_audit(test_db: AsyncSession, seed_d
     # officer3 (Dave): 45 jobs -> Not qualified
 
     # Run audit function
-    audit_res = await _perform_rewards_audit()
+    audit_res = await _perform_rewards_audit(session=test_db)
     assert audit_res["status"] == "COMPLETED"
     assert audit_res["qualified_count"] >= 2
 

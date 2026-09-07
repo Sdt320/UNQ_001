@@ -1,6 +1,6 @@
 """Technician approval and governance engine (/api/v1/admin)."""
 
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -20,7 +20,7 @@ class PendingWorkerResponse(BaseModel):
     email: str
     phone_number: str
     skills: List[str]
-    license_doc_url: str | None = None
+    license_doc_url: Optional[str] = None
     created_at: str
     latitude: float
     longitude: float

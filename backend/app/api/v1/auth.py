@@ -17,14 +17,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication & RBAC"])
 
 
 class CustomerRegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     full_name: str
     phone_number: str
 
 
 class EmployeeRegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     full_name: str
     phone_number: str

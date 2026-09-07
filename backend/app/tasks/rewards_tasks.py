@@ -16,7 +16,7 @@ def run_async(coro):
     return loop.run_until_complete(coro)
 
 
-async def _perform_rewards_audit() -> Dict[str, Any]:
+async def _perform_rewards_audit(session=None) -> Dict[str, Any]:
     """
     Audits technicians with completed_jobs_current_month >= 100 and average_rating >= 4.5.
     Sets reward_eligible = True and records rewards.
@@ -28,8 +28,8 @@ async def _perform_rewards_audit() -> Dict[str, Any]:
     qualified_count = 0
     officer_records = []
 
-    async with AsyncSessionLocal() as session:
-        # Query officers meeting qualification threshold
+    async def audit_logic(s):
+        nonlocal qualified_count, officer_records
         stmt = (
             select(FieldOfficer, User)
             .join(User, FieldOfficer.user_id == User.id)
@@ -38,7 +38,7 @@ async def _perform_rewards_audit() -> Dict[str, Any]:
                 FieldOfficer.average_rating >= 4.5
             )
         )
-        result = await session.execute(stmt)
+        result = await s.execute(stmt)
         rows = result.all()
 
         for officer, user in rows:
@@ -54,7 +54,13 @@ async def _perform_rewards_audit() -> Dict[str, Any]:
             })
             logger.info(f"Officer {user.full_name} ({officer.id}) qualified for 100-job monthly bonus with {officer.completed_jobs_current_month} jobs and {officer.average_rating} rating!")
 
-        await session.commit()
+        await s.commit()
+
+    if session:
+        await audit_logic(session)
+    else:
+        async with AsyncSessionLocal() as s:
+            await audit_logic(s)
 
     logger.info(f"Monthly Rewards Audit Completed: {qualified_count} officers qualified.")
     return {

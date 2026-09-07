@@ -13,10 +13,18 @@ Base = declarative_base()
 
 # Configure Async Engine
 database_url = settings.DATABASE_URL
+
+# Test if asyncpg is installed when postgresql is used; otherwise fallback to sqlite
+if "postgresql" in database_url:
+    try:
+        import asyncpg
+    except ImportError:
+        logger.warning("asyncpg driver not installed in current environment; falling back to sqlite+aiosqlite:///fieldmind.db")
+        database_url = "sqlite+aiosqlite:///fieldmind.db"
+
 if "sqlite" in database_url and not database_url.startswith("sqlite+aiosqlite"):
     database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://")
 
-# Enable pooling arguments only for postgresql
 connect_args = {}
 if "sqlite" in database_url:
     connect_args = {"check_same_thread": False}

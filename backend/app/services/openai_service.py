@@ -71,42 +71,48 @@ class OpenAIService:
         # Intelligent deterministic keyword parser for offline / test suite
         text_lower = text_prompt.lower()
         
-        # Categorization
-        if any(w in text_lower for w in ["pipe", "leak", "sink", "faucet", "drain", "water", "flood", "toilet", "clog"]):
+        # Categorization with boundary safety
+        has_plumbing = any(re.search(rf"\b{re.escape(w)}\b", text_lower) for w in ["pipe", "leak", "leaks", "sink", "faucet", "drain", "water", "flood", "flooding", "toilet", "clog", "solder", "soldering"])
+        has_electrical = any(re.search(rf"\b{re.escape(w)}\b", text_lower) for w in ["spark", "sparking", "wire", "wiring", "breaker", "switch", "short circuit", "voltage", "panel", "fuse"])
+        has_ac = any(re.search(rf"\b{re.escape(w)}\b", text_lower) for w in ["ac", "air conditioner", "air conditioning", "cooling", "freon", "hvac", "compressor", "heat pump"])
+        has_masonry = any(re.search(rf"\b{re.escape(w)}\b", text_lower) for w in ["brick", "bricks", "cement", "wall", "concrete", "mortar", "crack", "cracks", "masonry", "foundation"])
+        has_carpentry = any(re.search(rf"\b{re.escape(w)}\b", text_lower) for w in ["wood", "wooden", "door", "doors", "cabinet", "cabinets", "shelf", "hinge", "table", "carpentry", "timber"])
+
+        if has_plumbing:
             category = "Plumbing"
             skills = []
-            if "leak" in text_lower or "burst" in text_lower or "flood" in text_lower:
+            if any(w in text_lower for w in ["leak", "burst", "flood", "flooding"]):
                 skills.extend(["pipe_leak", "pipe_replacement"])
-            if "drain" in text_lower or "clog" in text_lower:
+            if any(w in text_lower for w in ["drain", "clog"]):
                 skills.extend(["drain_cleaning", "snaking"])
-            if "solder" in text_lower or "copper" in text_lower:
+            if any(w in text_lower for w in ["solder", "copper"]):
                 skills.append("soldering")
             if not skills:
                 skills = ["pipe_leak", "general_plumbing"]
             scope = "Pipe joint replacement, water shutoff, clamp tools"
 
-        elif any(w in text_lower for w in ["spark", "wire", "breaker", "switch", "short circuit", "voltage", "panel", "fuse"]):
+        elif has_electrical:
             category = "Electrical"
             skills = []
-            if "breaker" in text_lower or "fuse" in text_lower or "panel" in text_lower:
+            if any(w in text_lower for w in ["breaker", "fuse", "panel"]):
                 skills.extend(["breaker_replacement", "panel_wiring"])
-            if "spark" in text_lower or "short circuit" in text_lower:
+            if any(w in text_lower for w in ["spark", "short circuit"]):
                 skills.extend(["short_circuit_diagnosis", "wire_rewiring"])
             if not skills:
                 skills = ["wiring_repair", "circuit_testing"]
             scope = "Circuit breaker testing, multimeter diagnostics, insulated wire rewiring"
 
-        elif any(w in text_lower for w in ["ac", "air conditioner", "freon", "cooling", "hvac", "compressor", "heat pump"]):
+        elif has_ac:
             category = "AC Repair"
             skills = ["freon_recharge", "compressor_troubleshooting", "hvac_diagnostics"]
             scope = "Refrigerant pressure check, condenser coil cleanup, compressor inspection"
 
-        elif any(w in text_lower for w in ["brick", "cement", "wall", "concrete", "mortar", "crack", "masonry"]):
+        elif has_masonry:
             category = "Masonry"
             skills = ["mortar_patching", "bricklaying", "concrete_crack_repair"]
             scope = "Structural crack filling, mortar mix application, brick realignment"
 
-        elif any(w in text_lower for w in ["wood", "door", "cabinet", "shelf", "hinge", "table", "carpentry"]):
+        elif has_carpentry:
             category = "Carpentry"
             skills = ["door_hinge_realignment", "wood_finishing", "cabinet_repair"]
             scope = "Wood planing, hinge replacement, timber framing adjustment"
