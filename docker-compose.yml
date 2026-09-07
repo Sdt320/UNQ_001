@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # Database Layer: PostgreSQL 16 with PostGIS 3.4
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: fieldmind_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: fieldmind_db
+      POSTGRES_USER: fieldmind_user
+      POSTGRES_PASSWORD: fieldmind_secure_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fieldmind_user -d fieldmind_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # Caching & Distributed Mutex: Redis 7
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: fieldmind_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # Core Backend API: FastAPI + LangGraph Engine
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fieldmind_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://fieldmind_user:fieldmind_secure_password_2026@postgres:5432/fieldmind_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ----------------------------------------------------------------------------
+  # Background Task Queue: Celery Worker
+  # ----------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fieldmind_celery_worker
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://fieldmind_user:fieldmind_secure_password_2026@postgres:5432/fieldmind_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ./backend:/app
+    command: celery -A app.tasks.celery_app.celery worker --loglevel=info
+
+  # ----------------------------------------------------------------------------
+  # Periodic Task Scheduler: Celery Beat
+  # ----------------------------------------------------------------------------
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fieldmind_celery_beat
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://fieldmind_user:fieldmind_secure_password_2026@postgres:5432/fieldmind_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ./backend:/app
+    command: celery -A app.tasks.celery_app.celery beat --loglevel=info
+
+  # ----------------------------------------------------------------------------
+  # User Interface: React (Vite + Tailwind CSS)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fieldmind_frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
